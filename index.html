@@ -3,28 +3,476 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Routine Tracker</title>
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f3f4f6;
+        }
+        .container { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        .header h1 { font-size: 24px; margin-bottom: 5px; }
+        .header p { font-size: 12px; opacity: 0.9; }
+        .stats { display: flex; justify-content: space-between; margin: 15px 0; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 28px; font-weight: bold; }
+        .stat-label { font-size: 11px; opacity: 0.8; }
+        .tabs { display: flex; border-bottom: 1px solid #e5e7eb; background: white; position: sticky; top: 0; z-index: 10; }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; }
+        .tab.active { border-bottom-color: #667eea; color: #667eea; font-weight: 600; }
+        .content { padding: 15px; }
+        .activity { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 15px; margin-bottom: 12px; }
+        .activity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .activity-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+        .activity-icon { font-size: 24px; }
+        .activity-time { font-size: 12px; color: #6b7280; }
+        .activity-stats { font-size: 12px; color: #6b7280; margin-bottom: 10px; }
+        .variance { margin-left: 8px; font-weight: 600; }
+        .variance.positive { color: #f59e0b; }
+        .variance.negative { color: #3b82f6; }
+        .variance.zero { color: #10b981; }
+        .buttons { display: flex; gap: 8px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
+        .btn-start { background: #10b981; color: white; }
+        .btn-stop { background: #ef4444; color: white; }
+        .btn-manual { background: #f3f4f6; color: #374151; padding: 12px 15px; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; border-radius: 12px; padding: 20px; max-width: 90%; width: 350px; }
+        .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 15px; }
+        input[type="number"], input[type="time"] { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid #d1d5db; 
+            border-radius: 6px; 
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .calendar-day:hover { background: #f3f4f6; }
+        .calendar-day.selected { background: #667eea; color: white; font-weight: bold; }
+        .calendar-day.today { background: #ddd6fe; color: #667eea; font-weight: 600; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-weight: 600; }
+        .nav-btn { background: #f3f4f6; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+        .settings-item { border-bottom: 1px solid #f3f4f6; padding: 15px 0; }
+        .settings-label { font-size: 12px; color: #6b7280; margin-bottom: 5px; display: block; }
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .install-prompt { background: linear-gradient(to top, black, transparent); color: white; padding: 15px; text-align: center; font-size: 11px; position: fixed; bottom: 0; left: 0; right: 0; }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>Your Routine Tracker</h1>
-    </header>
-    <main>
-        <section id="task-list">
-            <h2>Your Tasks</h2>
-            <ul id="tasks">
-                <!-- Tasks will be populated here -->
-            </ul>
-        </section>
-        <section id="task-entry">
-            <h2>Add a New Task</h2>
-            <form id="task-form">
-                <input type="text" id="task-input" placeholder="Enter a new task" required>
-                <button type="submit">Add Task</button>
-            </form>
-        </section>
-    </main>
-    <script src="script.js"></script>
+    <div class="container">
+        <div class="header" id="headerStats">
+            <h1>Routine Tracker</h1>
+            <p>Stay disciplined, analyze, optimize</p>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Variance</div>
+                    <div class="stat-value" id="totalVariance">0m</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">🔥 Calories</div>
+                    <div class="stat-value" id="totalCalories">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('tracker')">Today</div>
+            <div class="tab" onclick="switchTab('calendar')">Calendar</div>
+            <div class="tab" onclick="switchTab('settings')">Settings</div>
+            <div class="tab" onclick="switchTab('weekly')">Weekly</div>
+        </div>
+
+        <div class="content" id="tabContent"></div>
+    </div>
+
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-title">Stop Timer?</div>
+            <p style="font-size: 14px; color: #6b7280;">Are you sure you want to stop tracking?</p>
+            <div class="modal-buttons">
+                <button class="btn btn-manual" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-stop" onclick="confirmStopTimer()">Stop</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="manualModal">
+        <div class="modal-content">
+            <div class="modal-title">Add Manual Entry</div>
+            <input type="number" id="manualMinutes" placeholder="Minutes" />
+            <div class="modal-buttons">
+                <button class="btn btn-manual" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-start" onclick="saveManualEntry()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="install-prompt">
+        💡 <strong>Install:</strong> Tap Share → Add to Home Screen (Safari)
+    </div>
+
+    <script>
+        const activities = [
+            { id: 'sleep', name: 'Sleep', planned: 420, icon: '😴', startTime: '23:00', cal: 0.9 },
+            { id: 'windup', name: 'Wind Up', planned: 30, icon: '☀️', startTime: '06:00', cal: 1.5 },
+            { id: 'run', name: 'Run', planned: 40, icon: '🏃', startTime: '06:30', cal: 10 },
+            { id: 'commute_am', name: 'Commute AM', planned: 60, icon: '🚗', startTime: '08:00', cal: 1.2 },
+            { id: 'work', name: 'Work', planned: 480, icon: '💼', startTime: '09:00', cal: 1.5 },
+            { id: 'commute_pm', name: 'Commute PM', planned: 80, icon: '🚙', startTime: '17:00', cal: 1.2 },
+            { id: 'gym', name: 'Gym', planned: 60, icon: '💪', startTime: '18:30', cal: 8 },
+            { id: 'walk', name: 'Walk', planned: 30, icon: '🚶', startTime: '20:00', cal: 4 },
+            { id: 'meals', name: 'Meals', planned: 60, icon: '🍽️', startTime: '19:00', cal: 1.0 },
+            { id: 'project', name: 'Project Work', planned: 120, icon: '📊', startTime: '20:30', cal: 1.8 },
+            { id: 'winddown', name: 'Wind Down', planned: 30, icon: '🌙', startTime: '22:30', cal: 1.0 },
+            { id: 'leisure', name: 'Leisure', planned: 60, icon: '🎮', startTime: '21:00', cal: 1.2 }
+        ];
+
+        let currentTab = 'tracker';
+        let selectedDate = new Date().toISOString().split('T')[0];
+        let todayLog = {};
+        let timers = {};
+        let timerInterval;
+        let pendingStopId = null;
+        let pendingManualId = null;
+
+        function loadActivities() {
+            const saved = localStorage.getItem('activities');
+            if (saved) {
+                const savedActivities = JSON.parse(saved);
+                savedActivities.forEach((saved, i) => {
+                    if (activities[i]) {
+                        activities[i].planned = saved.planned || activities[i].planned;
+                        activities[i].startTime = saved.startTime || activities[i].startTime;
+                        activities[i].cal = saved.cal || activities[i].cal;
+                    }
+                });
+            }
+        }
+
+        function saveActivities() {
+            localStorage.setItem('activities', JSON.stringify(activities));
+        }
+
+        function loadLog() {
+            const saved = localStorage.getItem(`log_${selectedDate}`);
+            todayLog = saved ? JSON.parse(saved) : {};
+        }
+
+        function saveLog() {
+            localStorage.setItem(`log_${selectedDate}`, JSON.stringify(todayLog));
+        }
+
+        function startTimer(id) {
+            timers[id] = { start: Date.now(), elapsed: 0 };
+            if (!timerInterval) {
+                timerInterval = setInterval(updateTimers, 1000);
+            }
+            render();
+            if ('Notification' in window && Notification.permission === 'granted') {
+                const activity = activities.find(a => a.id === id);
+                new Notification(`▶️ Started: ${activity.name}`);
+            }
+        }
+
+        function stopTimer(id) {
+            pendingStopId = id;
+            document.getElementById('confirmModal').classList.add('show');
+        }
+
+        function confirmStopTimer() {
+            if (!pendingStopId) return;
+            const timer = timers[pendingStopId];
+            if (timer) {
+                const mins = Math.round(timer.elapsed / 60000);
+                todayLog[pendingStopId] = (todayLog[pendingStopId] || 0) + mins;
+                delete timers[pendingStopId];
+                if (Object.keys(timers).length === 0 && timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                saveLog();
+            }
+            closeModal();
+            render();
+        }
+
+        function updateTimers() {
+            Object.keys(timers).forEach(id => {
+                timers[id].elapsed = Date.now() - timers[id].start;
+            });
+            render();
+        }
+
+        function openManualEntry(id) {
+            pendingManualId = id;
+            document.getElementById('manualMinutes').value = '';
+            document.getElementById('manualModal').classList.add('show');
+        }
+
+        function saveManualEntry() {
+            const mins = parseInt(document.getElementById('manualMinutes').value);
+            if (mins && pendingManualId) {
+                todayLog[pendingManualId] = (todayLog[pendingManualId] || 0) + mins;
+                saveLog();
+            }
+            closeModal();
+            render();
+        }
+
+        function closeModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+            document.getElementById('manualModal').classList.remove('show');
+            pendingStopId = null;
+            pendingManualId = null;
+        }
+
+        function formatTime(mins) {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return h > 0 ? `${h}h ${m}m` : `${m}m`;
+        }
+
+        function formatTimer(ms) {
+            const sec = Math.floor(ms / 1000);
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function getVariance(id) {
+            const activity = activities.find(a => a.id === id);
+            const actual = todayLog[id] || 0;
+            return actual - activity.planned;
+        }
+
+        function updateStats() {
+            const totalVar = activities.reduce((sum, a) => sum + getVariance(a.id), 0);
+            const totalCal = Math.round(activities.reduce((sum, a) => {
+                const actual = todayLog[a.id] || 0;
+                return sum + (actual * a.cal);
+            }, 0));
+            document.getElementById('totalVariance').textContent = (totalVar > 0 ? '+' : '') + totalVar + 'm';
+            document.getElementById('totalCalories').textContent = totalCal;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            render();
+        }
+
+        function changeDate(days) {
+            const d = new Date(selectedDate);
+            d.setDate(d.getDate() + days);
+            selectedDate = d.toISOString().split('T')[0];
+            loadLog();
+            render();
+        }
+
+        function renderTracker() {
+            const isToday = selectedDate === new Date().toISOString().split('T')[0];
+            let html = '';
+            activities.forEach(a => {
+                const actual = todayLog[a.id] || 0;
+                const variance = getVariance(a.id);
+                const timer = timers[a.id];
+                const running = !!timer;
+                const calories = Math.round(actual * a.cal);
+                const varClass = variance > 0 ? 'positive' : variance < 0 ? 'negative' : 'zero';
+
+                html += `
+                    <div class="activity">
+                        <div class="activity-header">
+                            <div class="activity-name">
+                                <span class="activity-icon">${a.icon}</span>
+                                <div>
+                                    <div>${a.name}</div>
+                                    <div class="activity-time">${a.startTime || ''}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="activity-stats">
+                            ${formatTime(actual)} / ${formatTime(a.planned)}
+                            <span class="variance ${varClass}">(${variance > 0 ? '+' : ''}${variance}m)</span>
+                            <span style="color: #f59e0b; margin-left: 8px;">🔥 ${calories}</span>
+                        </div>
+                        ${isToday ? `
+                            <div class="buttons">
+                                ${running ? `
+                                    <button class="btn btn-stop" onclick="stopTimer('${a.id}')">
+                                        Stop (${formatTimer(timer.elapsed)})
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-start" onclick="startTimer('${a.id}')">Start</button>
+                                `}
+                                <button class="btn btn-manual" onclick="openManualEntry('${a.id}')">+</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        function renderCalendar() {
+            const d = new Date(selectedDate);
+            const year = d.getFullYear();
+            const month = d.getMonth();
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const monthName = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+            let html = `
+                <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <div class="calendar-header">
+                        <button class="nav-btn" onclick="changeDate(-30)">←</button>
+                        <div>${monthName}</div>
+                        <button class="nav-btn" onclick="changeDate(30)">→</button>
+                    </div>
+                    <div class="calendar">
+                        ${['S','M','T','W','T','F','S'].map(d => `<div style="text-align:center;font-size:11px;color:#6b7280;padding:8px;">${d}</div>`).join('')}
+                        ${Array(firstDay).fill('<div></div>').join('')}
+                        ${Array.from({length: daysInMonth}, (_, i) => {
+                            const day = i + 1;
+                            const dateStr = `${year}-${(month+1).toString().padStart(2,'0')}-${day.toString().padStart(2,'0')}`;
+                            const isSelected = dateStr === selectedDate;
+                            const isToday = dateStr === new Date().toISOString().split('T')[0];
+                            const cls = isSelected ? 'selected' : isToday ? 'today' : '';
+                            return `<div class="calendar-day ${cls}" onclick="selectedDate='${dateStr}';loadLog();render()">${day}</div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+            html += renderTracker();
+            return html;
+        }
+
+        function renderSettings() {
+            let html = '<div style="background: white; padding: 15px; border-radius: 10px;">';
+            activities.forEach(a => {
+                html += `
+                    <div class="settings-item">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                            <span style="font-size:24px;">${a.icon}</span>
+                            <strong>${a.name}</strong>
+                        </div>
+                        <div class="settings-grid">
+                            <div>
+                                <label class="settings-label">Planned (mins)</label>
+                                <input type="number" value="${a.planned}" onchange="activities.find(x=>x.id=='${a.id}').planned=parseInt(this.value);saveActivities();render()" />
+                            </div>
+                            <div>
+                                <label class="settings-label">Start Time</label>
+                                <input type="time" value="${a.startTime||''}" onchange="activities.find(x=>x.id=='${a.id}').startTime=this.value;saveActivities();render()" />
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            return html;
+        }
+
+        function renderWeekly() {
+            const today = new Date();
+            const isSunday = today.getDay() === 0;
+            let html = `
+                <div style="background: ${isSunday ? '#ecfdf5' : '#f9fafb'}; border: ${isSunday ? '2px solid #10b981' : '1px solid #e5e7eb'}; padding: 20px; border-radius: 10px; margin-bottom: 15px;">
+                    <h2 style="margin-bottom:10px;">${isSunday ? '🎉 Weekly Report Ready!' : '📅 Available on Sunday'}</h2>
+                    <p style="font-size:14px;color:#6b7280;margin-bottom:15px;">
+                        ${isSunday ? 'Export your weekly data for analysis' : 'Come back Sunday to export progress'}
+                    </p>
+                    ${isSunday ? `
+                        <button class="btn btn-start" onclick="exportWeek()" style="width:100%;margin-bottom:10px;">📥 Download JSON</button>
+                        <button class="btn" onclick="emailWeek()" style="width:100%;background:#3b82f6;color:white;">📧 Email Backup</button>
+                    ` : ''}
+                </div>
+            `;
+            html += '<div style="background:white;padding:15px;border-radius:10px;"><h3 style="margin-bottom:15px;">Today Summary</h3>';
+            activities.forEach(a => {
+                const variance = getVariance(a.id);
+                const varClass = variance > 0 ? 'positive' : variance < 0 ? 'negative' : 'zero';
+                html += `
+                    <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f3f4f6;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <span>${a.icon}</span>
+                            <span style="font-size:14px;">${a.name}</span>
+                        </div>
+                        <span class="variance ${varClass}">${variance>0?'+':''}${variance}m</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            return html;
+        }
+
+        async function exportWeek() {
+            const logs = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toISOString().split('T')[0];
+                const log = localStorage.getItem(`log_${dateStr}`);
+                const dayLog = log ? JSON.parse(log) : {};
+                const actData = {};
+                activities.forEach(a => {
+                    const actual = dayLog[a.id] || 0;
+                    actData[a.id] = {
+                        planned: a.planned,
+                        actual: actual,
+                        variance: actual - a.planned,
+                        calories: Math.round(actual * a.cal)
+                    };
+                });
+                logs.push({
+                    date: dateStr,
+                    day: d.toLocaleDateString('en-US', {weekday:'long'}),
+                    activities: actData
+                });
+            }
+            const data = {
+                week_ending: new Date().toISOString().split('T')[0],
+                daily_logs: logs
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `routine_${data.week_ending}.json`;
+            a.click();
+        }
+
+        function emailWeek() {
+            alert('Download the JSON file first, then attach it to your email!');
+            exportWeek();
+        }
+
+        function render() {
+            updateStats();
+            const content = document.getElementById('tabContent');
+            if (currentTab === 'tracker') content.innerHTML = renderTracker();
+            else if (currentTab === 'calendar') content.innerHTML = renderCalendar();
+            else if (currentTab === 'settings') content.innerHTML = renderSettings();
+            else if (currentTab === 'weekly') content.innerHTML = renderWeekly();
+        }
+
+        // Request notifications
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // Initialize
+        loadActivities();
+        loadLog();
+        render();
+    </script>
 </body>
 </html>
